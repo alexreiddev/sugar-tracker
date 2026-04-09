@@ -1,0 +1,1246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Blood Sugar Tracker</title>
+<meta name="theme-color" content="#0a0a0f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Serif:ital@0;1&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface-2: #1a1a26;
+    --border: #2a2a3a;
+    --text: #e8e8f0;
+    --text-dim: #6a6a80;
+    --accent: #f472b6;
+    --accent-dim: rgba(244, 114, 182, 0.1);
+    --accent-glow: rgba(244, 114, 182, 0.15);
+    --green: #4ade80;
+    --green-dim: rgba(74, 222, 128, 0.1);
+    --blue: #60a5fa;
+    --blue-dim: rgba(96, 165, 250, 0.1);
+    --orange: #fb923c;
+    --orange-dim: rgba(251, 146, 60, 0.1);
+    --red: #f87171;
+    --red-dim: rgba(248, 113, 113, 0.1);
+    --cyan: #22d3ee;
+    --cyan-dim: rgba(34, 211, 238, 0.1);
+    --yellow: #facc15;
+    --yellow-dim: rgba(250, 204, 21, 0.1);
+    --purple: #a78bfa;
+    --purple-dim: rgba(167, 139, 250, 0.1);
+    --radius: 16px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'DM Mono', monospace;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .grain {
+    position: fixed; inset: 0; z-index: 9999; pointer-events: none; opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  }
+
+  .app { max-width: 480px; margin: 0 auto; padding: 16px; padding-bottom: 100px; }
+
+  .header {
+    text-align: center;
+    padding: 32px 0 24px;
+    position: relative;
+  }
+  .header::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 20%; right: 20%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+  }
+  .header h1 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 2rem;
+    font-weight: 400;
+    letter-spacing: -0.02em;
+    margin-bottom: 4px;
+  }
+  .header .subtitle {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+  }
+
+  /* Sync Banner */
+  .sync-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    margin-bottom: 16px;
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+  .sync-banner .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .sync-banner.connected {
+    background: var(--green-dim);
+    border: 1px solid rgba(74, 222, 128, 0.2);
+    color: var(--green);
+  }
+  .sync-banner.connected .dot { background: var(--green); animation: pulse 2s infinite; }
+  .sync-banner.disconnected {
+    background: var(--orange-dim);
+    border: 1px solid rgba(251, 146, 60, 0.25);
+    color: var(--orange);
+  }
+  .sync-banner.disconnected .dot { background: var(--orange); }
+  .sync-banner.error {
+    background: var(--red-dim);
+    border: 1px solid rgba(248, 113, 113, 0.25);
+    color: var(--red);
+  }
+  .sync-banner.error .dot { background: var(--red); }
+  .sync-banner .arrow { margin-left: auto; opacity: 0.5; }
+  @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.3} }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    margin: 24px 0 20px;
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 4px;
+    border: 1px solid var(--border);
+  }
+  .tab {
+    flex: 1;
+    padding: 10px 6px;
+    text-align: center;
+    font-size: 0.7rem;
+    font-family: 'DM Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    border: none;
+    background: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.3s;
+  }
+  .tab.active {
+    background: var(--surface-2);
+    color: var(--text);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+
+  /* Cards */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 16px;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
+  }
+  .card-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+  }
+
+  /* ── Meal Type Selector ── */
+  .meal-selector {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .meal-option {
+    padding: 14px 10px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface-2);
+    color: var(--text-dim);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.25s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+  .meal-option .meal-icon { font-size: 1.4rem; }
+  .meal-option:active { transform: scale(0.96); }
+  .meal-option.selected {
+    color: var(--text);
+    box-shadow: 0 0 20px var(--accent-glow);
+  }
+  .meal-option.selected.fasting   { border-color: var(--cyan); background: var(--cyan-dim); }
+  .meal-option.selected.breakfast { border-color: var(--yellow); background: var(--yellow-dim); }
+  .meal-option.selected.lunch     { border-color: var(--orange); background: var(--orange-dim); }
+  .meal-option.selected.dinner    { border-color: var(--purple); background: var(--purple-dim); }
+
+  /* BS Input */
+  .bs-display {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 4px;
+    margin: 12px 0;
+  }
+  .bs-display input {
+    font-family: 'Instrument Serif', serif;
+    font-size: 4rem;
+    width: 160px;
+    text-align: right;
+    background: none;
+    border: none;
+    color: var(--text);
+    outline: none;
+    caret-color: var(--accent);
+  }
+  .bs-display input::placeholder { color: var(--surface-2); }
+  .bs-display .unit {
+    font-size: 1rem;
+    color: var(--text-dim);
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* BS Range Indicator */
+  .bs-range {
+    text-align: center;
+    font-size: 0.7rem;
+    padding: 8px 16px;
+    border-radius: 8px;
+    margin-top: 8px;
+    transition: all 0.3s;
+  }
+  .bs-range.normal  { background: var(--green-dim); color: var(--green); border: 1px solid rgba(74,222,128,0.2); }
+  .bs-range.elevated { background: var(--yellow-dim); color: var(--yellow); border: 1px solid rgba(250,204,21,0.2); }
+  .bs-range.high    { background: var(--orange-dim); color: var(--orange); border: 1px solid rgba(251,146,60,0.2); }
+  .bs-range.danger  { background: var(--red-dim); color: var(--red); border: 1px solid rgba(248,113,113,0.2); }
+  .bs-range.hidden  { display: none; }
+
+  /* Meal Notes */
+  .meal-notes {
+    width: 100%;
+    padding: 12px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    outline: none;
+    resize: none;
+    min-height: 60px;
+    line-height: 1.6;
+  }
+  .meal-notes:focus { border-color: var(--accent); }
+  .meal-notes::placeholder { color: var(--text-dim); }
+
+  /* Today's Readings Summary */
+  .today-readings {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .today-slot {
+    text-align: center;
+    padding: 10px 4px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+  }
+  .today-slot .slot-label {
+    font-size: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+  .today-slot .slot-value {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.3rem;
+  }
+  .today-slot .slot-value.empty { color: var(--text-dim); font-size: 1rem; }
+  .today-slot.fasting  .slot-value { color: var(--cyan); }
+  .today-slot.breakfast .slot-value { color: var(--yellow); }
+  .today-slot.lunch    .slot-value { color: var(--orange); }
+  .today-slot.dinner   .slot-value { color: var(--purple); }
+
+  /* Submit */
+  .submit-btn {
+    width: 100%;
+    padding: 16px;
+    border: 1px solid var(--accent);
+    border-radius: 12px;
+    background: var(--accent-dim);
+    color: var(--accent);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    cursor: pointer;
+    transition: all 0.3s;
+    margin-top: 8px;
+  }
+  .submit-btn:active { transform: scale(0.98); background: var(--accent); color: var(--bg); }
+  .submit-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  /* Stats Row */
+  .stats-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 10px;
+    text-align: center;
+  }
+  .stat-value {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.5rem;
+    margin-bottom: 2px;
+  }
+  .stat-label {
+    font-size: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+  }
+
+  /* Chart View Selector */
+  .chart-view-selector {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .cv-btn {
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: none;
+    color: var(--text-dim);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.6rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .cv-btn.active { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+  .cv-btn.fasting.active  { border-color: var(--cyan); color: var(--cyan); background: var(--cyan-dim); }
+  .cv-btn.postmeal.active { border-color: var(--orange); color: var(--orange); background: var(--orange-dim); }
+  .cv-btn.variance.active { border-color: var(--purple); color: var(--purple); background: var(--purple-dim); }
+  .cv-btn.all.active      { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+  .cv-btn.breakfast.active { border-color: var(--yellow); color: var(--yellow); background: var(--yellow-dim); }
+  .cv-btn.lunch.active    { border-color: var(--orange); color: var(--orange); background: var(--orange-dim); }
+  .cv-btn.dinner.active   { border-color: var(--purple); color: var(--purple); background: var(--purple-dim); }
+
+  /* Chart */
+  .chart-container {
+    height: 220px;
+    position: relative;
+    margin: 12px 0;
+  }
+  canvas { width: 100% !important; height: 100% !important; }
+
+  /* Period Selector */
+  .period-selector {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 12px;
+  }
+  .period-btn {
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: none;
+    color: var(--text-dim);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .period-btn.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-dim);
+  }
+
+  /* Data Table */
+  .data-table {
+    width: 100%;
+    font-size: 0.65rem;
+  }
+  .data-table th {
+    text-align: left;
+    font-size: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+    padding: 8px 4px 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-weight: 400;
+  }
+  .data-table td {
+    padding: 10px 4px 10px 0;
+    border-bottom: 1px solid rgba(42, 42, 58, 0.4);
+    vertical-align: top;
+  }
+  .meal-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 0.6rem;
+    font-weight: 500;
+  }
+  .meal-tag.fasting   { background: var(--cyan-dim); color: var(--cyan); }
+  .meal-tag.breakfast  { background: var(--yellow-dim); color: var(--yellow); }
+  .meal-tag.lunch      { background: var(--orange-dim); color: var(--orange); }
+  .meal-tag.dinner     { background: var(--purple-dim); color: var(--purple); }
+  .bs-val.normal   { color: var(--green); }
+  .bs-val.elevated { color: var(--yellow); }
+  .bs-val.high     { color: var(--orange); }
+  .bs-val.danger   { color: var(--red); }
+  .meal-detail {
+    font-size: 0.55rem;
+    color: var(--text-dim);
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .variance-val {
+    font-size: 0.6rem;
+    font-weight: 500;
+  }
+  .variance-val.pos { color: var(--orange); }
+  .variance-val.neg { color: var(--green); }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--accent);
+    color: var(--bg);
+    padding: 12px 24px;
+    border-radius: 100px;
+    font-size: 0.75rem;
+    font-family: 'DM Mono', monospace;
+    z-index: 1000;
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    white-space: nowrap;
+  }
+  .toast.error { background: var(--red); }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* Setup */
+  .setup-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .setup-panel label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--text-dim);
+    display: block;
+    margin-bottom: 8px;
+  }
+  .setup-panel input[type="text"] {
+    width: 100%;
+    padding: 12px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    outline: none;
+    margin-bottom: 16px;
+    word-break: break-all;
+  }
+  .setup-panel input[type="text"]:focus { border-color: var(--accent); }
+  .btn-row { display: flex; gap: 8px; }
+  .btn-row .submit-btn { flex: 1; }
+  .step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--accent-dim);
+    border: 1px solid rgba(244,114,182,0.3);
+    color: var(--accent);
+    font-size: 0.6rem;
+    margin-right: 8px;
+    flex-shrink: 0;
+  }
+  .setup-step {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 14px;
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    line-height: 1.7;
+  }
+  .setup-step code {
+    color: var(--accent);
+    font-size: 0.65rem;
+    background: var(--accent-dim);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  .test-result {
+    font-size: 0.7rem;
+    padding: 10px 12px;
+    border-radius: 8px;
+    margin-top: 12px;
+    display: none;
+    line-height: 1.6;
+  }
+  .test-result.success { display: block; background: var(--green-dim); border: 1px solid rgba(74,222,128,0.2); color: var(--green); }
+  .test-result.fail { display: block; background: var(--red-dim); border: 1px solid rgba(248,113,113,0.2); color: var(--red); }
+
+  .section { display: none; }
+  .section.active { display: block; }
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="grain"></div>
+
+<div class="app">
+  <div class="header">
+    <h1>Glyco Track</h1>
+    <div class="subtitle">Blood Sugar Monitoring</div>
+  </div>
+
+  <div class="sync-banner disconnected" id="syncBanner" onclick="switchTab('setup')">
+    <span class="dot"></span>
+    <span id="syncText">Offline &#8212; tap to connect Google Sheets</span>
+    <span class="arrow">&#8594;</span>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="log" onclick="switchTab('log')">Log</button>
+    <button class="tab" data-tab="dashboard" onclick="switchTab('dashboard')">Dashboard</button>
+    <button class="tab" data-tab="setup" onclick="switchTab('setup')">Setup</button>
+  </div>
+
+  <!-- ═══ LOG TAB ═══ -->
+  <div id="tab-log" class="section active">
+
+    <div class="card">
+      <div class="card-label">Today's Readings</div>
+      <div class="today-readings" id="todaySlots">
+        <div class="today-slot fasting">
+          <div class="slot-label">Fasting</div>
+          <div class="slot-value empty" id="slot-fasting">--</div>
+        </div>
+        <div class="today-slot breakfast">
+          <div class="slot-label">Breakfast</div>
+          <div class="slot-value empty" id="slot-breakfast">--</div>
+        </div>
+        <div class="today-slot lunch">
+          <div class="slot-label">Lunch</div>
+          <div class="slot-value empty" id="slot-lunch">--</div>
+        </div>
+        <div class="today-slot dinner">
+          <div class="slot-label">Dinner</div>
+          <div class="slot-value empty" id="slot-dinner">--</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Reading Type</div>
+      <div class="meal-selector">
+        <div class="meal-option fasting selected" data-meal="fasting" onclick="selectMeal('fasting')">
+          <span class="meal-icon">&#9790;</span>
+          <span>Fasting</span>
+        </div>
+        <div class="meal-option breakfast" data-meal="breakfast" onclick="selectMeal('breakfast')">
+          <span class="meal-icon">&#9749;</span>
+          <span>Post-Breakfast</span>
+        </div>
+        <div class="meal-option lunch" data-meal="lunch" onclick="selectMeal('lunch')">
+          <span class="meal-icon">&#127860;</span>
+          <span>Post-Lunch</span>
+        </div>
+        <div class="meal-option dinner" data-meal="dinner" onclick="selectMeal('dinner')">
+          <span class="meal-icon">&#127769;</span>
+          <span>Post-Dinner</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Blood Sugar Level</div>
+      <div class="bs-display">
+        <input type="number" id="bsInput" placeholder="0" step="1" inputmode="numeric" oninput="updateRangeIndicator()">
+        <span class="unit">mg/dL</span>
+      </div>
+      <div class="bs-range hidden" id="bsRange"></div>
+    </div>
+
+    <div class="card" id="mealNotesCard">
+      <div class="card-label" id="mealNotesLabel">Meal Details (optional)</div>
+      <textarea class="meal-notes" id="mealNotes" placeholder="e.g. 2 rotis, dal, rice, sabzi..."></textarea>
+    </div>
+
+    <button class="submit-btn" id="submitBtn" onclick="submitReading()">
+      Log Reading &#8594;
+    </button>
+  </div>
+
+  <!-- ═══ DASHBOARD TAB ═══ -->
+  <div id="tab-dashboard" class="section">
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-value" id="statAvgFasting" style="color:var(--cyan)">--</div>
+        <div class="stat-label">Avg Fasting</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="statAvgPost" style="color:var(--orange)">--</div>
+        <div class="stat-label">Avg Post-Meal</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="statAvgVariance" style="color:var(--purple)">--</div>
+        <div class="stat-label">Avg Spike</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Chart View</div>
+      <div class="chart-view-selector">
+        <button class="cv-btn all active" onclick="setChartView('all', this)">All Readings</button>
+        <button class="cv-btn fasting" onclick="setChartView('fasting', this)">Fasting Only</button>
+        <button class="cv-btn postmeal" onclick="setChartView('postmeal', this)">Post-Meal Only</button>
+        <button class="cv-btn variance" onclick="setChartView('variance', this)">Spike from Baseline</button>
+        <button class="cv-btn breakfast" onclick="setChartView('breakfast', this)">Breakfast</button>
+        <button class="cv-btn lunch" onclick="setChartView('lunch', this)">Lunch</button>
+        <button class="cv-btn dinner" onclick="setChartView('dinner', this)">Dinner</button>
+      </div>
+      <div class="period-selector">
+        <button class="period-btn active" onclick="setPeriod('7d', this)">7D</button>
+        <button class="period-btn" onclick="setPeriod('30d', this)">30D</button>
+        <button class="period-btn" onclick="setPeriod('90d', this)">90D</button>
+        <button class="period-btn" onclick="setPeriod('all', this)">All</button>
+      </div>
+      <div class="chart-container">
+        <canvas id="mainChart"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Daily Variance (Post-Meal &#8722; Fasting)</div>
+      <div class="chart-container" style="height:160px">
+        <canvas id="varianceChart"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Recent Readings</div>
+      <table class="data-table">
+        <thead>
+          <tr><th>Date</th><th>Type</th><th>BS</th><th>&#916; Base</th><th>Meal</th></tr>
+        </thead>
+        <tbody id="dataBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ═══ SETUP TAB ═══ -->
+  <div id="tab-setup" class="section">
+    <div class="setup-panel">
+      <label>Connect Google Sheets</label>
+      <div class="setup-step">
+        <span class="step-num">1</span>
+        <span>Create a Google Sheet &#8594; <strong style="color:var(--text)">Extensions &#8594; Apps Script</strong></span>
+      </div>
+      <div class="setup-step">
+        <span class="step-num">2</span>
+        <span>Paste <code>blood-sugar-script.js</code>. Deploy as <strong style="color:var(--text)">Web App</strong> (Execute as: Me, Access: Anyone)</span>
+      </div>
+      <div class="setup-step">
+        <span class="step-num">3</span>
+        <span>Paste the deployed URL below:</span>
+      </div>
+      <input type="text" id="apiUrl" placeholder="https://script.google.com/macros/s/...">
+      <label>Your Name / ID</label>
+      <input type="text" id="userId" placeholder="e.g. john">
+      <div class="btn-row">
+        <button class="submit-btn" onclick="saveSetup()" style="border-color:var(--blue);color:var(--blue);background:var(--blue-dim)">Save</button>
+        <button class="submit-btn" id="testBtn" onclick="testConnection()">Test Connection</button>
+      </div>
+      <div class="test-result" id="testResult"></div>
+    </div>
+    <div class="setup-panel">
+      <label>Data Management</label>
+      <div style="font-size:0.7rem;color:var(--text-dim);margin-bottom:12px">
+        <span id="entryCount">0</span> readings stored locally
+      </div>
+      <div class="btn-row">
+        <button class="submit-btn" onclick="exportLocal()" style="border-color:var(--orange);color:var(--orange);background:var(--orange-dim);margin-top:0">Export JSON</button>
+        <button class="submit-btn" onclick="forceSyncAll()" style="border-color:var(--blue);color:var(--blue);background:var(--blue-dim);margin-top:0">Force Sync</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+// ── State ──
+let readings = [];
+let config = { apiUrl: '', userId: 'default' };
+let isConnected = false;
+let selectedMeal = 'fasting';
+let mainChartInst, varianceChartInst;
+let currentPeriod = '7d';
+let currentChartView = 'all';
+
+const MEAL_COLORS = {
+  fasting:   { border: '#22d3ee', bg: 'rgba(34,211,238,0.15)' },
+  breakfast: { border: '#facc15', bg: 'rgba(250,204,21,0.15)' },
+  lunch:     { border: '#fb923c', bg: 'rgba(251,146,60,0.15)' },
+  dinner:    { border: '#a78bfa', bg: 'rgba(167,139,250,0.15)' }
+};
+const MEAL_LABELS = { fasting: 'Fasting', breakfast: 'Post-Breakfast', lunch: 'Post-Lunch', dinner: 'Post-Dinner' };
+
+// ── Init ──
+document.addEventListener('DOMContentLoaded', () => {
+  loadConfig();
+  loadLocalData();
+  updateSyncBanner();
+  updateEntryCount();
+  updateTodaySlots();
+  updateMealNotesVisibility();
+  if (config.apiUrl) fetchFromSheet();
+});
+
+// ── Tabs ──
+function switchTab(tab) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  const b = document.querySelector(`.tab[data-tab="${tab}"]`);
+  if (b) b.classList.add('active');
+  if (tab === 'dashboard') renderDashboard();
+}
+
+// ── Meal Selector ──
+function selectMeal(meal) {
+  selectedMeal = meal;
+  document.querySelectorAll('.meal-option').forEach(o => o.classList.remove('selected'));
+  document.querySelector(`.meal-option[data-meal="${meal}"]`).classList.add('selected');
+  updateMealNotesVisibility();
+  updateRangeIndicator();
+}
+
+function updateMealNotesVisibility() {
+  const card = document.getElementById('mealNotesCard');
+  const label = document.getElementById('mealNotesLabel');
+  if (selectedMeal === 'fasting') {
+    card.style.display = 'none';
+  } else {
+    card.style.display = 'block';
+    const names = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner' };
+    label.textContent = names[selectedMeal] + ' Details (optional)';
+  }
+}
+
+// ── Range Indicator ──
+function updateRangeIndicator() {
+  const val = parseInt(document.getElementById('bsInput').value);
+  const el = document.getElementById('bsRange');
+  if (!val || val < 30) { el.className = 'bs-range hidden'; return; }
+
+  const isFasting = selectedMeal === 'fasting';
+  let cls, text;
+
+  if (isFasting) {
+    if (val < 100) { cls = 'normal'; text = 'Normal fasting range'; }
+    else if (val < 126) { cls = 'elevated'; text = 'Pre-diabetic range (100-125)'; }
+    else { cls = 'high'; text = 'Diabetic range (126+)'; }
+  } else {
+    if (val < 140) { cls = 'normal'; text = 'Normal post-meal range'; }
+    else if (val < 200) { cls = 'elevated'; text = 'Elevated post-meal (140-199)'; }
+    else { cls = 'danger'; text = 'High post-meal (200+)'; }
+  }
+  el.className = 'bs-range ' + cls;
+  el.textContent = val + ' mg/dL — ' + text;
+}
+
+// ── Submit ──
+async function submitReading() {
+  const val = parseInt(document.getElementById('bsInput').value);
+  if (!val || val < 30 || val > 600) {
+    showToast('Enter a valid blood sugar (30-600)', true);
+    return;
+  }
+
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+
+  const now = new Date();
+  const today = now.toISOString().split('T')[0];
+
+  // Find today's fasting for variance
+  const todayFasting = readings.find(r => r.date === today && r.meal === 'fasting');
+  const variance = (selectedMeal !== 'fasting' && todayFasting) ? val - todayFasting.value : null;
+
+  const entry = {
+    id: now.getTime().toString(),
+    date: today,
+    time: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+    meal: selectedMeal,
+    value: val,
+    variance: variance,
+    notes: selectedMeal !== 'fasting' ? document.getElementById('mealNotes').value.trim() : '',
+    userId: config.userId
+  };
+
+  readings.push(entry);
+  saveLocalData();
+  updateEntryCount();
+  updateTodaySlots();
+
+  if (config.apiUrl) {
+    await pushToSheet(entry);
+    showToast('Logged & synced &#10003;');
+  } else {
+    showToast('Saved locally');
+  }
+
+  // Reset
+  document.getElementById('bsInput').value = '';
+  document.getElementById('mealNotes').value = '';
+  document.getElementById('bsRange').className = 'bs-range hidden';
+  btn.disabled = false;
+  btn.textContent = 'Log Reading \u2192';
+
+  // Auto-advance meal type
+  const order = ['fasting', 'breakfast', 'lunch', 'dinner'];
+  const idx = order.indexOf(selectedMeal);
+  if (idx < 3) selectMeal(order[idx + 1]);
+}
+
+// ── Today's Slots ──
+function updateTodaySlots() {
+  const today = new Date().toISOString().split('T')[0];
+  const todayReadings = readings.filter(r => r.date === today);
+  ['fasting', 'breakfast', 'lunch', 'dinner'].forEach(meal => {
+    const el = document.getElementById('slot-' + meal);
+    const reading = todayReadings.find(r => r.meal === meal);
+    if (reading) {
+      el.textContent = reading.value;
+      el.className = 'slot-value';
+    } else {
+      el.textContent = '--';
+      el.className = 'slot-value empty';
+    }
+  });
+}
+
+// ── Sync ──
+function updateSyncBanner() {
+  const banner = document.getElementById('syncBanner');
+  const text = document.getElementById('syncText');
+  if (!config.apiUrl) {
+    banner.className = 'sync-banner disconnected'; text.textContent = 'Offline \u2014 tap to connect'; isConnected = false;
+  } else if (isConnected) {
+    banner.className = 'sync-banner connected'; text.textContent = 'Syncing to Google Sheets';
+  } else {
+    banner.className = 'sync-banner error'; text.textContent = 'URL set but not verified';
+  }
+}
+function updateEntryCount() {
+  const el = document.getElementById('entryCount');
+  if (el) el.textContent = readings.length;
+}
+
+async function pushToSheet(entry) {
+  try {
+    await fetch(config.apiUrl, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(entry) });
+    isConnected = true; updateSyncBanner(); return true;
+  } catch(e) { return false; }
+}
+
+async function fetchFromSheet() {
+  if (!config.apiUrl) return;
+  try {
+    const res = await fetch(config.apiUrl + '?action=get&userId=' + encodeURIComponent(config.userId), { redirect: 'follow' });
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch(e) { isConnected = false; updateSyncBanner(); return; }
+    isConnected = true; updateSyncBanner();
+    if (data && Array.isArray(data) && data.length) {
+      const sheetIds = new Set(data.map(e => e.id).filter(Boolean));
+      const unsynced = readings.filter(e => e.id && !sheetIds.has(e.id));
+      readings = [...data, ...unsynced];
+      saveLocalData(); updateEntryCount(); updateTodaySlots();
+      for (const s of unsynced) await pushToSheet(s);
+    }
+  } catch(e) { isConnected = false; updateSyncBanner(); }
+}
+
+async function testConnection() {
+  const testBtn = document.getElementById('testBtn');
+  const resultEl = document.getElementById('testResult');
+  const url = document.getElementById('apiUrl').value.trim();
+  if (!url) { resultEl.className = 'test-result fail'; resultEl.textContent = 'Paste your Apps Script URL above.'; return; }
+  testBtn.disabled = true; testBtn.textContent = 'Testing...'; resultEl.style.display = 'none';
+  try {
+    const res = await fetch(url + '?action=get&userId=__test__', { redirect: 'follow' });
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch(e) {
+      resultEl.className = 'test-result fail';
+      resultEl.innerHTML = '&#10007; Response not JSON. Verify deployment settings.<br><a href="' + url + '?action=get&userId=test" target="_blank" style="color:var(--accent)">Open URL in browser</a> to debug.';
+      testBtn.disabled = false; testBtn.textContent = 'Test Connection'; return;
+    }
+    if (Array.isArray(data)) {
+      isConnected = true; updateSyncBanner();
+      resultEl.className = 'test-result success';
+      resultEl.innerHTML = '&#10003; Connected! ' + data.length + ' entries found.';
+    }
+  } catch(e) {
+    resultEl.className = 'test-result fail';
+    resultEl.innerHTML = '&#10007; Network error: ' + e.message + '<br>Try re-deploying as a <strong>New deployment</strong>.';
+  }
+  testBtn.disabled = false; testBtn.textContent = 'Test Connection';
+}
+
+async function forceSyncAll() {
+  if (!config.apiUrl) { showToast('Set API URL first', true); return; }
+  showToast('Syncing...');
+  let ok = 0;
+  for (const r of readings) { if (await pushToSheet(r)) ok++; }
+  showToast(ok + '/' + readings.length + ' synced &#10003;');
+}
+
+// ── Storage ──
+function saveLocalData() { try { localStorage.setItem('bs_readings', JSON.stringify(readings)); } catch(e){} }
+function loadLocalData() { try { readings = JSON.parse(localStorage.getItem('bs_readings') || '[]'); } catch(e) { readings = []; } }
+function saveConfig() { try { localStorage.setItem('bs_config', JSON.stringify(config)); } catch(e){} }
+function loadConfig() {
+  try { config = JSON.parse(localStorage.getItem('bs_config') || '{}'); } catch(e) { config = {}; }
+  if (!config.apiUrl) config.apiUrl = '';
+  if (!config.userId) config.userId = 'default';
+  document.getElementById('apiUrl').value = config.apiUrl;
+  document.getElementById('userId').value = config.userId;
+}
+function saveSetup() {
+  config.apiUrl = document.getElementById('apiUrl').value.trim();
+  config.userId = document.getElementById('userId').value.trim() || 'default';
+  saveConfig(); updateSyncBanner(); showToast('Saved &#10003;');
+  if (config.apiUrl) fetchFromSheet();
+}
+function exportLocal() {
+  const blob = new Blob([JSON.stringify(readings, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'blood-sugar-export.json'; a.click();
+  showToast('Exported &#10003;');
+}
+
+// ── Dashboard ──
+function renderDashboard() {
+  if (!readings.length) {
+    document.getElementById('dataBody').innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-dim)">No readings yet</td></tr>';
+    return;
+  }
+
+  const sorted = [...readings].sort((a, b) => {
+    const d = a.date.localeCompare(b.date);
+    return d !== 0 ? d : (a.id || '0').localeCompare(b.id || '0');
+  });
+
+  // Stats
+  const fastings = sorted.filter(r => r.meal === 'fasting');
+  const postMeals = sorted.filter(r => r.meal !== 'fasting');
+  const avgFasting = fastings.length ? Math.round(fastings.reduce((s, r) => s + r.value, 0) / fastings.length) : '--';
+  const avgPost = postMeals.length ? Math.round(postMeals.reduce((s, r) => s + r.value, 0) / postMeals.length) : '--';
+  const withVariance = sorted.filter(r => r.variance !== null && r.variance !== undefined);
+  const avgVar = withVariance.length ? Math.round(withVariance.reduce((s, r) => s + r.variance, 0) / withVariance.length) : '--';
+
+  document.getElementById('statAvgFasting').textContent = avgFasting !== '--' ? avgFasting : '--';
+  document.getElementById('statAvgPost').textContent = avgPost !== '--' ? avgPost : '--';
+  document.getElementById('statAvgVariance').textContent = avgVar !== '--' ? (avgVar > 0 ? '+' : '') + avgVar : '--';
+
+  const filtered = filterByPeriod(sorted, currentPeriod);
+  renderMainChart(filtered);
+  renderVarianceChart(filtered);
+
+  // Table
+  const recent = [...sorted].reverse().slice(0, 25);
+  document.getElementById('dataBody').innerHTML = recent.map(r => {
+    const bsCls = getBsClass(r.value, r.meal === 'fasting');
+    const varHtml = r.variance !== null && r.variance !== undefined
+      ? `<span class="variance-val ${r.variance >= 0 ? 'pos' : 'neg'}">${r.variance > 0 ? '+' : ''}${r.variance}</span>`
+      : '<span style="color:var(--text-dim)">--</span>';
+    return `<tr>
+      <td>${formatDate(r.date)}<br><span style="font-size:0.5rem;color:var(--text-dim)">${r.time || ''}</span></td>
+      <td><span class="meal-tag ${r.meal}">${MEAL_LABELS[r.meal] || r.meal}</span></td>
+      <td><span class="bs-val ${bsCls}">${r.value}</span></td>
+      <td>${varHtml}</td>
+      <td><span class="meal-detail" title="${(r.notes || '').replace(/"/g, '&quot;')}">${r.notes || '--'}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function getBsClass(val, isFasting) {
+  if (isFasting) {
+    if (val < 100) return 'normal';
+    if (val < 126) return 'elevated';
+    return 'high';
+  }
+  if (val < 140) return 'normal';
+  if (val < 200) return 'elevated';
+  return 'danger';
+}
+
+function filterByPeriod(data, period) {
+  const now = new Date();
+  let cutoff = new Date();
+  if (period === '7d') cutoff.setDate(now.getDate() - 7);
+  else if (period === '30d') cutoff.setDate(now.getDate() - 30);
+  else if (period === '90d') cutoff.setDate(now.getDate() - 90);
+  else return data;
+  const cs = cutoff.toISOString().split('T')[0];
+  return data.filter(e => e.date >= cs);
+}
+
+function setPeriod(p, btn) {
+  currentPeriod = p;
+  document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderDashboard();
+}
+
+function setChartView(view, btn) {
+  currentChartView = view;
+  document.querySelectorAll('.cv-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const sorted = [...readings].sort((a, b) => a.date.localeCompare(b.date) || (a.id||'0').localeCompare(b.id||'0'));
+  renderMainChart(filterByPeriod(sorted, currentPeriod));
+}
+
+function renderMainChart(data) {
+  const ctx = document.getElementById('mainChart').getContext('2d');
+  if (mainChartInst) mainChartInst.destroy();
+
+  let datasets = [];
+  const view = currentChartView;
+
+  if (view === 'all') {
+    // Multi-line: one per meal type
+    ['fasting', 'breakfast', 'lunch', 'dinner'].forEach(meal => {
+      const mealData = data.filter(r => r.meal === meal);
+      if (mealData.length) {
+        datasets.push({
+          label: MEAL_LABELS[meal],
+          data: mealData.map(r => ({ x: r.date + ' ' + (r.time || ''), y: r.value })),
+          borderColor: MEAL_COLORS[meal].border,
+          backgroundColor: MEAL_COLORS[meal].bg,
+          borderWidth: 2,
+          pointRadius: 3,
+          pointBackgroundColor: MEAL_COLORS[meal].border,
+          tension: 0.3,
+          fill: false
+        });
+      }
+    });
+  } else if (view === 'fasting') {
+    const d = data.filter(r => r.meal === 'fasting');
+    datasets.push({
+      label: 'Fasting',
+      data: d.map(r => ({ x: r.date, y: r.value })),
+      borderColor: MEAL_COLORS.fasting.border,
+      backgroundColor: MEAL_COLORS.fasting.bg,
+      borderWidth: 2, pointRadius: 4, tension: 0.3, fill: true,
+      pointBackgroundColor: MEAL_COLORS.fasting.border,
+    });
+  } else if (view === 'postmeal') {
+    ['breakfast', 'lunch', 'dinner'].forEach(meal => {
+      const d = data.filter(r => r.meal === meal);
+      if (d.length) {
+        datasets.push({
+          label: MEAL_LABELS[meal],
+          data: d.map(r => ({ x: r.date, y: r.value })),
+          borderColor: MEAL_COLORS[meal].border,
+          backgroundColor: MEAL_COLORS[meal].bg,
+          borderWidth: 2, pointRadius: 3, tension: 0.3, fill: false,
+          pointBackgroundColor: MEAL_COLORS[meal].border,
+        });
+      }
+    });
+  } else if (view === 'variance') {
+    const d = data.filter(r => r.variance !== null && r.variance !== undefined);
+    datasets.push({
+      label: 'Spike from Fasting',
+      data: d.map(r => ({ x: r.date + ' ' + (r.time || ''), y: r.variance })),
+      borderColor: '#a78bfa',
+      backgroundColor: 'rgba(167,139,250,0.1)',
+      borderWidth: 2, pointRadius: 4, tension: 0.3, fill: true,
+      pointBackgroundColor: d.map(r => r.variance >= 50 ? '#f87171' : r.variance >= 30 ? '#fb923c' : '#4ade80'),
+    });
+  } else if (['breakfast', 'lunch', 'dinner'].includes(view)) {
+    const d = data.filter(r => r.meal === view);
+    datasets.push({
+      label: MEAL_LABELS[view],
+      data: d.map(r => ({ x: r.date, y: r.value })),
+      borderColor: MEAL_COLORS[view].border,
+      backgroundColor: MEAL_COLORS[view].bg,
+      borderWidth: 2, pointRadius: 4, tension: 0.3, fill: true,
+      pointBackgroundColor: MEAL_COLORS[view].border,
+    });
+  }
+
+  // Reference lines
+  const annotations = [];
+  if (view !== 'variance') {
+    datasets.push({
+      label: 'Normal Upper (Fasting)',
+      data: datasets.length && datasets[0].data.length ? datasets[0].data.map(d => ({ x: d.x, y: 100 })) : [],
+      borderColor: 'rgba(74,222,128,0.25)',
+      borderWidth: 1, borderDash: [6, 4], pointRadius: 0, fill: false,
+    });
+  }
+
+  mainChartInst = new Chart(ctx, {
+    type: 'line',
+    data: { datasets: datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          display: datasets.length > 1,
+          position: 'bottom',
+          labels: { color: '#6a6a80', font: { family: 'DM Mono', size: 9 }, boxWidth: 12, padding: 12 }
+        }
+      },
+      scales: {
+        x: {
+          type: 'category',
+          labels: [...new Set(data.map(r => formatDate(r.date)))],
+          grid: { color: 'rgba(42,42,58,0.3)' },
+          ticks: { color: '#6a6a80', font: { family: 'DM Mono', size: 9 }, maxRotation: 45 }
+        },
+        y: {
+          grid: { color: 'rgba(42,42,58,0.3)' },
+          ticks: {
+            color: '#6a6a80',
+            font: { family: 'DM Mono', size: 9 },
+            callback: v => view === 'variance' ? (v > 0 ? '+' : '') + v : v
+          },
+          beginAtZero: view === 'variance'
+        }
+      }
+    }
+  });
+}
+
+function renderVarianceChart(data) {
+  const ctx = document.getElementById('varianceChart').getContext('2d');
+  if (varianceChartInst) varianceChartInst.destroy();
+
+  // Group by date: average spike per day
+  const byDate = {};
+  data.forEach(r => {
+    if (r.variance !== null && r.variance !== undefined) {
+      if (!byDate[r.date]) byDate[r.date] = [];
+      byDate[r.date].push(r.variance);
+    }
+  });
+  const dates = Object.keys(byDate).sort();
+  const avgs = dates.map(d => Math.round(byDate[d].reduce((s, v) => s + v, 0) / byDate[d].length));
+
+  varianceChartInst = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: dates.map(formatDate),
+      datasets: [{
+        data: avgs,
+        backgroundColor: avgs.map(v => v >= 50 ? 'rgba(248,113,113,0.5)' : v >= 30 ? 'rgba(251,146,60,0.5)' : 'rgba(74,222,128,0.5)'),
+        borderColor: avgs.map(v => v >= 50 ? '#f87171' : v >= 30 ? '#fb923c' : '#4ade80'),
+        borderWidth: 1,
+        borderRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#6a6a80', font: { family: 'DM Mono', size: 9 }, maxRotation: 45 } },
+        y: { grid: { color: 'rgba(42,42,58,0.3)' }, ticks: { color: '#6a6a80', font: { family: 'DM Mono', size: 9 }, callback: v => '+' + v }, beginAtZero: true }
+      }
+    }
+  });
+}
+
+function formatDate(s) {
+  const d = new Date(s + 'T00:00:00');
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function showToast(msg, isError) {
+  const t = document.getElementById('toast');
+  t.innerHTML = msg;
+  t.className = 'toast' + (isError ? ' error' : '');
+  void t.offsetWidth;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>

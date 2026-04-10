@@ -738,7 +738,9 @@
 <script>
 // ── State ──
 let readings = [];
-let config = { apiUrl: '', userId: 'default' };
+const HARDCODED_API = 'https://script.google.com/macros/s/AKfycbz-HwSiNptxrmv0WneziTz6iGABtPHWyBl3nhxglPWxeN-KswWNsDT1vTHhM0_J-orJ/exec';
+const HARDCODED_USER = 'kunju';
+let config = { apiUrl: HARDCODED_API, userId: HARDCODED_USER };
 let isConnected = false;
 let selectedMeal = 'fasting';
 let mainChartInst, varianceChartInst;
@@ -971,15 +973,13 @@ function saveLocalData() { try { localStorage.setItem('bs_readings', JSON.string
 function loadLocalData() { try { readings = JSON.parse(localStorage.getItem('bs_readings') || '[]'); } catch(e) { readings = []; } }
 function saveConfig() { try { localStorage.setItem('bs_config', JSON.stringify(config)); } catch(e){} }
 function loadConfig() {
-  try { config = JSON.parse(localStorage.getItem('bs_config') || '{}'); } catch(e) { config = {}; }
-  if (!config.apiUrl) config.apiUrl = '';
-  if (!config.userId) config.userId = 'default';
+  config = { apiUrl: HARDCODED_API, userId: HARDCODED_USER };
   document.getElementById('apiUrl').value = config.apiUrl;
   document.getElementById('userId').value = config.userId;
 }
 function saveSetup() {
-  config.apiUrl = document.getElementById('apiUrl').value.trim();
-  config.userId = document.getElementById('userId').value.trim() || 'default';
+  config.apiUrl = document.getElementById('apiUrl').value.trim() || HARDCODED_API;
+  config.userId = document.getElementById('userId').value.trim() || HARDCODED_USER;
   saveConfig(); updateSyncBanner(); showToast('Saved &#10003;');
   if (config.apiUrl) fetchFromSheet();
 }
